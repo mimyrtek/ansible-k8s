@@ -1,0 +1,8 @@
+---
+# defaults file for mongodb
+mongodb_port: 27017
+mongodb_admin_user: admin
+mongodb_admin_pass: StrongPassword123!
+mongodb_bind_ip: "0.0.0.0"
+tls_cert_path: /etc/ssl/mongodb/mongodb.pem
+tls_ca_path: /etc/ssl/mongodb/mongodb-ca.crt

@@ -1,0 +1,17 @@
+---
+- hosts: k8sctrl,k8snodes
+  become: true
+  tasks:
+    - import_role:
+        name: k8srole
+        tasks_from: pre_reboot.yml
+
+- hosts: k8sctrl,k8snodes
+  become: true
+  tasks:
+    - import_role:
+        name: k8srole
+        tasks_from: post_reboot.yml
+
+
+        

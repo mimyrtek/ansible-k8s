@@ -1,0 +1,5 @@
+- name: Deploy MongoDB 8.0 with TLS and admin auth
+  hosts: all
+  become: true
+  roles:
+    - mongodb

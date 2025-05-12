@@ -1,0 +1,7 @@
+- name: Disable authorization (initial bootstrap)
+  lineinfile:
+    path: /etc/mongod.conf
+    regexp: '^ *authorization:'
+    line: '  authorization: disabled'
+    insertafter: '^security:'
+  notify: Restart MongoDB

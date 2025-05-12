@@ -1,0 +1,34 @@
+- name: Create TLS directory
+  file:
+    path: /etc/ssl/mongodb
+    state: directory
+    owner: mongodb
+    group: mongodb
+    mode: '0755'
+
+- name: Generate private key and self-signed cert
+  command: >
+    openssl req -x509 -nodes -days 365 -newkey rsa:4096
+    -keyout /etc/ssl/mongodb/mongodb.key
+    -out /etc/ssl/mongodb/mongodb.crt
+    -subj "/CN=localhost"
+  args:
+    creates: /etc/ssl/mongodb/mongodb.crt
+
+- name: Combine key and cert into mongodb.pem
+  shell: cat /etc/ssl/mongodb/mongodb.key /etc/ssl/mongodb/mongodb.crt > /etc/ssl/mongodb/mongodb.pem
+  args:
+    creates: /etc/ssl/mongodb/mongodb.pem
+
+- name: Copy cert to CA file
+  copy:
+    src: /etc/ssl/mongodb/mongodb.crt
+    dest: /etc/ssl/mongodb/mongodb-ca.crt
+    remote_src: yes
+
+- name: Set correct permissions
+  file:
+    path: "/etc/ssl/mongodb/mongodb.pem"
+    owner: mongodb
+    group: mongodb
+    mode: '0600'

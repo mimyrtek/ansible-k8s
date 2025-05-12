@@ -1,0 +1,175 @@
+---
+
+- name: Install required packages
+  apt:
+    pkg:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gpg
+    state: latest
+
+- name: Use the k8s apt key
+  get_url:
+    url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    mode: "0644"
+
+- name: Install k8s apt sources
+  apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+    state: present
+
+# - name: Download Kubernetes apt key
+#   get_url:
+#     url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+#     dest: /usr/share/keyrings/kubernetes-archive-keyring.gpg
+#     mode: '0644'
+
+# - name: Create Kubernetes apt repository file
+#   copy:
+#     dest: /etc/apt/sources.list.d/kubernetes.list
+#     content: "deb [arch=amd64 signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg trusted=yes] https://apt.kubernetes.io/ kubernetes-xenial main\n"
+#     owner: root
+#     group: root
+#     mode: '0644'
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install Kubernetes packages (kubeadm, kubectl, kubelet)
+  apt:
+    name:
+      - kubeadm
+      - kubectl
+      - kubelet
+    state: present
+    update_cache: yes
+
+- name: Initialize Kubernetes cluster (controller only)
+  become: yes
+  shell: |
+    kubeadm init --control-plane-endpoint=10.10.50.150 --node-name controller --pod-network-cidr=10.200.0.0/16
+  args:
+    creates: /etc/kubernetes/admin.conf
+  register: kubeadm_init
+  when: "'k8sctrl' in group_names"
+
+- name: Set up kubeconfig for root (controller only)
+  become: yes
+  shell: |
+    mkdir -p $HOME/.kube && \
+    cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && \
+    chown $(id -u):$(id -g) $HOME/.kube/config
+  when: "'k8sctrl' in group_names"  
+  when: kubeadm_init.changed and ('k8sctrl' in group_names)
+  
+
+# - name: Install Flannel overlay network (controller only)
+#   shell: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+#   #when: kubeadm_init.changed and ('k8sctrl' in group_names)
+#   when: "'k8sctrl' in group_names"
+
+# - name: Create pod definition file for sample deployment (controller only)
+#   copy:
+#     dest: /tmp/pod.yml
+#     content: |
+#       apiVersion: v1
+#       kind: Pod
+#       metadata:
+#         name: nginx-example
+#         labels:
+#           app: nginx
+#       spec:
+#         containers:
+#           - name: nginx
+#             image: linuxserver/nginx
+#             ports:
+#               - containerPort: 80
+#                 name: "nginx-http"
+#   when: "'k8sctrl' in group_names"
+
+# Install k9s
+- name: Download k9s binary
+  ansible.builtin.get_url:
+    url: "https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_amd64.tar.gz"
+    dest: "/tmp/k9s_Linux_amd64.tar.gz"
+    mode: '0644'
+  become: true
+
+- name: Extract k9s binary
+  ansible.builtin.unarchive:
+    src: "/tmp/k9s_Linux_amd64.tar.gz"
+    dest: "/usr/local/bin"
+    remote_src: yes
+    mode: '0755'
+  become: true
+
+
+# tasks/install_flannel.yml in your k8role
+- name: Download Flannel manifest
+  get_url:
+    url: "https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
+    dest: "/tmp/kube-flannel.yml"
+    mode: '0644'
+  when: "'k8sctrl' in group_names"
+
+- name: Update pod network CIDR in Flannel manifest
+  replace:
+    path: "/tmp/kube-flannel.yml"
+    regexp: "10\\.244\\.0\\.0/16"
+    replace: "10.200.0.0/16"
+  when: "'k8sctrl' in group_names"
+  
+
+- name: Apply Flannel manifest on master
+  become: yes
+  shell: "kubectl apply -f /tmp/kube-flannel.yml"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  when: "'k8sctrl' in group_names"  
+
+
+
+
+
+# - name: Apply sample pod definition (controller only)
+#   command: kubectl apply -f /tmp/pod.yml
+#   when: "'k8sctrl1' in group_names"
+
+# - name: Create NodePort service definition file (controller only)
+#   copy:
+#     dest: /tmp/service-nodeport.yml
+#     content: |
+#       apiVersion: v1
+#       kind: Service
+#       metadata:
+#         name: nginx-example
+#       spec:
+#         type: NodePort
+#         ports:
+#           - name: http
+#             port: 80
+#             nodePort: 30080
+#             targetPort: nginx-http
+#         selector:
+#           app: nginx
+#   when: "'k8sctrl1' in group_names"
+
+# - name: Apply NodePort service definition (controller only)
+#   command: kubectl apply -f /tmp/service-nodeport.yml
+#   when: "'k8sctrl1' in group_names"
+
+- name: Disable unattended-upgrades service
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    enabled: no
+    state: stopped
+    
+- name: Remove unattended-upgrades package
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: absent
+    purge: yes
+    update_cache: no

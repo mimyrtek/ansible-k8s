@@ -1,0 +1,35 @@
+- name: Ensure required packages are present
+  apt:
+    name:
+      - gnupg
+      - curl
+      - python3-pip
+    state: present
+    update_cache: yes
+
+- name: Import MongoDB public GPG key
+  shell: |
+    curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc |     gpg --dearmor | tee /usr/share/keyrings/mongodb-server-8.0.gpg > /dev/null
+  args:
+    creates: /usr/share/keyrings/mongodb-server-8.0.gpg
+
+- name: Add MongoDB repository
+  copy:
+    dest: /etc/apt/sources.list.d/mongodb-org-8.0.list
+    content: |
+      deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install MongoDB
+  apt:
+    name: mongodb-org
+    state: present
+
+- name: Ensure MongoDB is started and enabled
+  systemd:
+    name: mongod
+    state: started
+    enabled: yes

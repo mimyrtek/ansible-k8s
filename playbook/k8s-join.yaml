@@ -1,0 +1,33 @@
+---
+# playbook: join_nodes.yml
+
+- name: Retrieve kubeadm join command from master (k8sctrl)
+  hosts: k8sctrl
+  become: yes
+  gather_facts: false
+  tasks:
+    - name: Generate kubeadm join command on master node
+      command: kubeadm token create --print-join-command
+      register: join_command_output
+      changed_when: false
+      run_once: true
+
+    - name: Save join command as fact on k8sctrl
+      set_fact:
+        kubeadm_join_command: "{{ join_command_output.stdout }}"
+      run_once: true
+
+- name: Join worker nodes to the Kubernetes cluster
+  hosts: k8snodes
+  become: yes
+  gather_facts: false
+  tasks:
+    - name: Wait for the Kubernetes API to become available
+      wait_for:
+        host: "10.10.50.150"   # your control plane endpoint IP
+        port: 6443
+        delay: 10
+        timeout: 300
+
+    - name: Join worker node to the cluster
+      shell: "{{ hostvars['k8sctrl']['kubeadm_join_command'] }}"

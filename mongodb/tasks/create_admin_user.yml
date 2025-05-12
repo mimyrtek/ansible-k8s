@@ -1,0 +1,20 @@
+- name: Install pymongo
+  pip:
+    name: pymongo
+
+- name: Create admin user (bootstrap mode)
+  community.mongodb.mongodb_user:
+    login_host: "localhost"
+    login_port: 27017
+    database: admin
+    name: admin
+    password: Zq295set
+    roles:
+      - role: userAdminAnyDatabase
+        db: admin
+      - readWriteAnyDatabase
+    connection_options:
+      - ssl=true
+      - ssl_certfile=/etc/ssl/mongodb/mongodb.pem
+      - ssl_ca_certs=/etc/ssl/mongodb/mongodb-ca.crt
+    state: present

@@ -1,0 +1,7 @@
+- name: Enable authorization
+  lineinfile:
+    path: /etc/mongod.conf
+    regexp: '^ *authorization:'
+    line: '  authorization: enabled'
+    insertafter: '^security:'
+  notify: Restart MongoDB
